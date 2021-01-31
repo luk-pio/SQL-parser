@@ -11,7 +11,7 @@
 
     int yylex(void);
     void rpn(char *s, ...);
-    void pprint_push(char *s, ...);
+    void stack_push(char *s, int numargs);
     char *itostr(int num);
     int yyerror(const char *s, ...);
 
@@ -25,13 +25,14 @@
     /* }; */
 
 
-    struct pp_entry {
+    struct stack_entry {
       char *fstring;
-      SLIST_ENTRY(pp_entry) entries;
+      int numargs;
+      SLIST_ENTRY(stack_entry) entries;
     };
 
-    SLIST_HEAD(listhead, pp_entry);
-    struct listhead pp_head;
+    SLIST_HEAD(listhead, stack_entry);
+    struct listhead stack_head;
 
 
 %}
@@ -61,22 +62,25 @@
 %type <intval> expr
 %type <intval> select_expr
 
-%start stmt_list
+%type <strval> stmt_list
+%type <strval> stmt
 
 %%
 
 // TOP
+top: stmt_list;
+
 stmt_list: stmt ';' 
-| stmt_list stmt ';' {pprint_push("%s%s", $1, $2);}
+| stmt_list stmt ';' { stack_push("{}{}", 2); }
 ;
 
-stmt: select_stmt { rpn("STMT"); pprint_push("%s;\n"); };
+stmt: select_stmt { rpn("STMT"); stack_push("{};\n", 1); };
 
-expr: NAME         { rpn("NAME %s", $1); pprint_push($1); }
+expr: NAME         { rpn("NAME %s", $1); stack_push($1, 0); }
    | NAME '.' NAME { rpn("FIELDNAME %s.%s", $1, $3); free($1); free($3); }
    | USERVAR       { rpn("USERVAR %s", $1); free($1); }
    | STRING        { rpn("STRING %s", $1); free($1); }
-   | INTNUM        { rpn("INTNUM %i", $1); pprint_push(itostr($1)); }
+   | INTNUM        { rpn("INTNUM %i", $1); stack_push(itostr($1), 0); }
    | APPROXNUM     { rpn("FLOAT %g", $1); }
    | BOOL          { rpn("BOOL %d", $1); }
    ;
@@ -84,7 +88,7 @@ expr: NAME         { rpn("NAME %s", $1); pprint_push($1); }
 // SELECT
 
 select_stmt: SELECT select_expr
-                        { rpn("SELECT, %d", $2); pprint_push("SELECT %s"); }
+                        { rpn("SELECT, %d", $2); stack_push("SELECT {}", 1); }
 ;
 
 /*     | SELECT select_opts select_expr_list  */
@@ -125,38 +129,49 @@ void rpn(char *s, ...) {
   }
 }
 
-void pprint_push(char *s, ...) {
-  struct pp_entry *entry;
-  entry = malloc(sizeof(struct pp_entry));      /* Insert at the head. */
+void stack_push(char* s, int numargs) {
+  struct stack_entry* entry = malloc(sizeof* entry);
   entry->fstring = s;
-  SLIST_INSERT_HEAD(&pp_head, entry, entries);
+  entry->numargs = numargs;
+
+  SLIST_INSERT_HEAD(&stack_head, entry, entries);
+}
+
+char* construct(char* buff) {
+  // Pop the stack
+  struct stack_entry* entry = SLIST_FIRST(&stack_head);
+  SLIST_REMOVE_HEAD(&stack_head, entries);
+
+  printf("ENTRY: %s\n", entry->fstring);
+  printf("BUFF: %s\n", buff);
+
+  char* tmpl_str = entry->fstring;
+  char* found_char;
+  int found_ind;
+  int start = 0;
+
+  for (int i=0; i < entry->numargs; i++) {
+    // From the end, construct and store into buffers, after loop assemble in order.
+    found_char = strchr(&tmpl_str[start], '{');
+    found_ind = (int)(found_char - tmpl_str);
+    if (tmpl_str[found_ind + sizeof(char)] == '}') {
+      strncat(buff, &tmpl_str[start], found_ind - start);
+      printf("CAT: %i - %i\n", start, found_ind - start);
+      construct(buff);
+      start = found_ind + 2*sizeof(char);
+    }
+  }
+  strncat(buff, &entry->fstring[start], strlen(tmpl_str) - start);
+  free(entry);
 }
 
 void pprint() {
-  char buff[1024], tmp_buff[1024];
-
-  // Take the first element off the stack and use it as the root template string.
-  struct pp_entry *entry;
-  entry = SLIST_FIRST(&pp_head);
-  sprintf(buff, "%s", entry->fstring);
-  printf("ENTRY: %s\n", entry->fstring);
-  printf("BUFF: %s\n", buff);
-  SLIST_REMOVE_HEAD(&pp_head, entries);
-  free(entry);
-
-  SLIST_FOREACH(entry, &pp_head, entries) {
-    printf("ENTRY: %s\n", entry->fstring);
-    printf("BUFF: %s\n", buff);
-    // Use a temp buffer to prevent losing \0
-    strcpy(tmp_buff, buff);
-    sprintf(buff, tmp_buff, entry->fstring);
-  }
-
-  printf("%s", buff);
+  char buff[1024], cp_buff[1024], tmp_buff[1024];
+  struct stack_entry *entry;
+  construct(buff);
+  printf("OUTPUT: %s", buff);
     
 }
-
-
 
 int yyerror(const char *s, ...) {
   int yylineno;
@@ -170,7 +185,7 @@ int yyerror(const char *s, ...) {
 }
 
 int main(int ac, char **av) {
-  SLIST_INIT(&pp_head);
+  SLIST_INIT(&stack_head);
 
   extern FILE *yyin;
 
@@ -195,27 +210,3 @@ int main(int ac, char **av) {
 
   return 0;
 }
-/* main(int argc, char *argv[]) { */
-/*     yyin = stdin; */
-/*     yyout = stdout; */
-
-/*     /\* Jezeli zostal zdefiniowany plik wejscia i/lub wyjscia *\/ */
-/*     if (argc >= 2) */
-/*     { */
-/*         /\* Otworz plik do czytania *\/ */
-/*         yyin = fopen(argv[1], "r"); */
-
-/*         /\* Jezeli nie udalo sie otworzyc pliku *\/ */
-/*         if(yyin == NULL) */
-/*         { */
-/*             fprintf(stderr, "ERROR: Input file not exists.\n"); */
-/*             return 1; */
-/*         } */
-/*     } */
-
-/*     yyparse(); */
-/*     if(test){ */
-/*         printf("Test OK!\n"); */
-/*         fprintf(yyout, "Test OK!\n"); */
-/*     } */
-/* } */
