@@ -7,23 +7,15 @@
     #include <math.h>
     #include <sys/queue.h>
 
-    int yydebug;
+    #define BUFF_SIZE 1024
+
+    int yydebug=0;
 
     int yylex(void);
     void rpn(char *s, ...);
     void stack_push(char *s, int numargs);
     char *itostr(int num);
     int yyerror(const char *s, ...);
-
-    /* SLIST_HEAD(listhead, rpn_entry) head; */
-
-    /* struct rpn_entry { */
-    /*   char token[100]; */
-    /*   char attr[100]; */
-    /*   int num_args; */
-    /*   SLIST_ENTRY(rpn_entry) entries; */
-    /* }; */
-
 
     struct stack_entry {
       char *fstring;
@@ -112,13 +104,15 @@ select_expr: expr;
 
 %%
 
-char *itostr(int num) {
-  static char str[50];
+
+char* itostr(int num) {
+  char* str = malloc(sizeof(char) * 64);
   sprintf(str, "%d", num);
   return str;
 }
 
-void rpn(char *s, ...) {
+
+void rpn(char* s, ...) {
   va_list ap;
   va_start(ap, s);
 
@@ -129,6 +123,7 @@ void rpn(char *s, ...) {
   }
 }
 
+
 void stack_push(char* s, int numargs) {
   struct stack_entry* entry = malloc(sizeof* entry);
   entry->fstring = s;
@@ -137,56 +132,73 @@ void stack_push(char* s, int numargs) {
   SLIST_INSERT_HEAD(&stack_head, entry, entries);
 }
 
+
 char* construct(char* buff) {
+  /*
+    Pops the head off the RPN stack and recursively constructs a string for each argument of the current RPN operator.
+    The number of arguments to construct is given by entry->numargs. Since the stack is in RPN order, the strings for the arguments are constructed in reverse order.
+    After strings for all the arguments are constructed, the whole string is written to buff.
+  */
+    
   // Pop the stack
   struct stack_entry* entry = SLIST_FIRST(&stack_head);
   SLIST_REMOVE_HEAD(&stack_head, entries);
 
-  if (yydebug) {
-    printf("ENTRY: %s\n", entry->fstring);
-    printf("BUFF: %s\n", buff);
-  }
+  if (yydebug) printf("ENTRY: %s\n", entry->fstring);
 
-  char* tmpl_str = entry->fstring;
-  char* found_char;
-  char* tmp_buff;
-  int found_ind;
-  int start = 0;
-  char* arg_buffs[entry->numargs];
+  // Allocate a buffer for each argument
+  char **arg_buffs;
+  arg_buffs = malloc(entry->numargs * sizeof(char*));
+  for (int i = 0; i < entry->numargs; i++)
+    arg_buffs[i] = malloc(BUFF_SIZE);
 
-
-  // From the end, construct and store into buffers.
+  // From the end (because RPN), construct and store into buffers.
   for (int i = entry->numargs - 1; i > -1; i--) {
-    arg_buffs[i] = construct(buff);
-    start = found_ind - 2*sizeof(char);
+    if (yydebug) printf("CONSTRUCTING ARG %d\n", i);
+
+    strcpy(arg_buffs[i], "");
+    construct(arg_buffs[i]);
   }
 
+  char *found_char, *tmpl_str = entry->fstring;
+  int found_ind, str_start = 0;
 
   // This could've gone in with the loop above but seems simpler and more readable this way
-  for (int i = 0; i < entry->argnums; i++) {
-    found_char = strchr(&tmpl_str[start], '{');
-    found_ind = (int)(found_char + tmpl_str);
-    if (tmpl_str[found_ind + sizeof(char)] == '}') {
+  for (int i = 0; i < entry->numargs; i++) {
+    // we look for each occurence of "{}" in the template string and substitute it for the constructed argument string
+    found_char = strchr(&tmpl_str[str_start], '{');
+    found_ind = (int)(found_char - tmpl_str);
 
-      if (yydebug) printf("Constructing arg %i: %i - %i\n", entry->numargs - i, start, found_ind - start);
+    if (tmpl_str[found_ind + 1] == '}') {
+      if (yydebug) {
+        printf("APPENDING SLICE %d - %d\n", str_start, found_ind);
+        printf("APPENDING ARG %d\nARG VAL: %s\n", i, arg_buffs[i]);
+      }
 
-      strncat(buff, &tmpl_str[start], found_ind - start);
+      strncat(buff, &tmpl_str[str_start], found_ind - str_start);
+      strcat(buff, arg_buffs[i]);
 
+      str_start = found_ind + 2;
+    } else {
+      yyerror("Could not find closing parenthesis in the template string.");
     }
-    strncat(buff, &entry->fstring[start], strlen(tmpl_str) - start);
-
   }
+  // Append what is left of the template string
+  strncat(buff, &tmpl_str[str_start], (int)strlen(tmpl_str) - str_start);
 
   free(entry);
+  free(arg_buffs);
 }
 
+
 void pprint() {
-  char buff[1024], cp_buff[1024], tmp_buff[1024];
-  struct stack_entry *entry;
+  char* buff = malloc(sizeof(char) * BUFF_SIZE);
+  strcpy(buff, "");
   construct(buff);
-  printf("OUTPUT: %s", buff);
-    
+  printf("%s", buff);
+  free(buff);
 }
+
 
 int yyerror(const char *s, ...) {
   int yylineno;
@@ -198,6 +210,7 @@ int yyerror(const char *s, ...) {
   vfprintf(stderr, s, ap);
   fprintf(stderr, "\n");
 }
+
 
 int main(int ac, char **av) {
   SLIST_INIT(&stack_head);
@@ -213,13 +226,14 @@ int main(int ac, char **av) {
     exit(1);
   }
 
+  yydebug = 0;
   
   if(!yyparse()) {
     pprint();
-    printf("\nSQL parse worked\n");
+    if (yydebug) printf("\nSQL parse worked\n");
   }
   else {
-    printf("\nSQL parse failed\n");
+    if (yydebug) printf("\nSQL parse failed\n");
     return 1;
   }
 
