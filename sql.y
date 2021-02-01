@@ -142,26 +142,41 @@ char* construct(char* buff) {
   struct stack_entry* entry = SLIST_FIRST(&stack_head);
   SLIST_REMOVE_HEAD(&stack_head, entries);
 
-  printf("ENTRY: %s\n", entry->fstring);
-  printf("BUFF: %s\n", buff);
+  if (yydebug) {
+    printf("ENTRY: %s\n", entry->fstring);
+    printf("BUFF: %s\n", buff);
+  }
 
   char* tmpl_str = entry->fstring;
   char* found_char;
+  char* tmp_buff;
   int found_ind;
   int start = 0;
+  char* arg_buffs[entry->numargs];
 
-  for (int i=0; i < entry->numargs; i++) {
-    // From the end, construct and store into buffers, after loop assemble in order.
-    found_char = strchr(&tmpl_str[start], '{');
-    found_ind = (int)(found_char - tmpl_str);
-    if (tmpl_str[found_ind + sizeof(char)] == '}') {
-      strncat(buff, &tmpl_str[start], found_ind - start);
-      printf("CAT: %i - %i\n", start, found_ind - start);
-      construct(buff);
-      start = found_ind + 2*sizeof(char);
-    }
+
+  // From the end, construct and store into buffers.
+  for (int i = entry->numargs - 1; i > -1; i--) {
+    arg_buffs[i] = construct(buff);
+    start = found_ind - 2*sizeof(char);
   }
-  strncat(buff, &entry->fstring[start], strlen(tmpl_str) - start);
+
+
+  // This could've gone in with the loop above but seems simpler and more readable this way
+  for (int i = 0; i < entry->argnums; i++) {
+    found_char = strchr(&tmpl_str[start], '{');
+    found_ind = (int)(found_char + tmpl_str);
+    if (tmpl_str[found_ind + sizeof(char)] == '}') {
+
+      if (yydebug) printf("Constructing arg %i: %i - %i\n", entry->numargs - i, start, found_ind - start);
+
+      strncat(buff, &tmpl_str[start], found_ind - start);
+
+    }
+    strncat(buff, &entry->fstring[start], strlen(tmpl_str) - start);
+
+  }
+
   free(entry);
 }
 
