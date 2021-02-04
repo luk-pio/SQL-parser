@@ -140,23 +140,23 @@ expr: NAME         { $$ = 1; rpn("NAME %s", $1); int arg_reps[] = {}; stack_push
    | BOOL          { $$ = 1; rpn("BOOL %d", $1); int arg_reps[] = {}; stack_push(btostr($1), 0, arg_reps); }
    ;
 
-expr: expr '+' expr { rpn("ADD"); int arg_reps[] = {}; stack_push("{} + {}", 2, arg_reps);}
-   | expr '-' expr { rpn("SUB"); int arg_reps[] = {}; stack_push("{} - {}", 2, arg_reps);}
-   | expr '*' expr { rpn("MUL"); int arg_reps[] = {}; stack_push("{} * {}", 2, arg_reps);}
-   | expr '/' expr { rpn("DIV"); int arg_reps[] = {}; stack_push("{} / {}", 2, arg_reps);}
-   | expr '%' expr { rpn("MOD"); int arg_reps[] = {}; stack_push("{} % {}", 2, arg_reps);}
-   | expr MOD expr { rpn("MOD"); int arg_reps[] = {}; stack_push("{} MOD {}", 2, arg_reps);}
-   | expr ANDOP expr { rpn("AND"); int arg_reps[] = {}; stack_push("{} AND {}", 2, arg_reps);}
-   | expr OR expr { rpn("OR"); int arg_reps[] = {}; stack_push("{} OR {}", 2, arg_reps);}
-   | expr XOR expr { rpn("XOR"); int arg_reps[] = {}; stack_push("{} XOR {}", 2, arg_reps);}
-   | expr '|' expr { rpn("BITOR"); int arg_reps[] = {}; stack_push("{} | {}", 2, arg_reps);}
-   | expr '&' expr { rpn("BITAND"); int arg_reps[] = {}; stack_push("{} & {}", 2, arg_reps);}
-   | expr '^' expr { rpn("BITXOR"); int arg_reps[] = {}; stack_push("{} ^ {}", 2, arg_reps);}
-   | NOT expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {}; stack_push("NOT {}", 1, arg_reps);}
-   | '!' expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {}; stack_push("! {}", 1, arg_reps);}
+expr: expr '+' expr { rpn("ADD"); int arg_reps[] = {1,1}; stack_push("{} + {}", 2, arg_reps);}
+   | expr '-' expr { rpn("SUB"); int arg_reps[] = {1,1}; stack_push("{} - {}", 2, arg_reps);}
+   | expr '*' expr { rpn("MUL"); int arg_reps[] = {1,1}; stack_push("{} * {}", 2, arg_reps);}
+   | expr '/' expr { rpn("DIV"); int arg_reps[] = {1,1}; stack_push("{} / {}", 2, arg_reps);}
+   | expr '%' expr { rpn("MOD"); int arg_reps[] = {1,1}; stack_push("{} % {}", 2, arg_reps);}
+   | expr MOD expr { rpn("MOD"); int arg_reps[] = {1,1}; stack_push("{} MOD {}", 2, arg_reps);}
+   | expr ANDOP expr { rpn("AND"); int arg_reps[] = {1,1}; stack_push("{} AND {}", 2, arg_reps);}
+   | expr OR expr { rpn("OR"); int arg_reps[] = {1,1}; stack_push("{} OR {}", 2, arg_reps);}
+   | expr XOR expr { rpn("XOR"); int arg_reps[] = {1,1}; stack_push("{} XOR {}", 2, arg_reps);}
+   | expr '|' expr { rpn("BITOR"); int arg_reps[] = {1,1}; stack_push("{} | {}", 2, arg_reps);}
+   | expr '&' expr { rpn("BITAND"); int arg_reps[] = {1,1}; stack_push("{} & {}", 2, arg_reps);}
+   | expr '^' expr { rpn("BITXOR"); int arg_reps[] = {1,1}; stack_push("{} ^ {}", 2, arg_reps);}
+   | NOT expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {1}; stack_push("NOT {}", 1, arg_reps);}
+   | '!' expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {1}; stack_push("! {}", 1, arg_reps);}
    | expr COMPARISON expr {
     rpn("CMP %s", $2);
-    int arg_reps[] = {}; stack_pushf("{} %s {}", 2, arg_reps, 16, $2);
+    int arg_reps[] = {1,1}; stack_pushf("{} %s {}", 2, arg_reps, 16, $2);
     free($2);
  }
 
@@ -200,13 +200,13 @@ expr: expr BETWEEN expr AND expr %prec BETWEEN { rpn("BETWEEN"); int arg_reps[] 
 select_stmt: SELECT select_opts select_expr_list
                         { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {$2, $3}; stack_push("SELECT {}{}", 2, arg_reps); }
 ;
-/* select_stmt: SELECT select_opts select_expr_list */
-/*                         { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {$2, $3}; stack_push("SELECT {}{}", 2, arg_reps); } */
-/*     | SELECT select_opts select_expr_list */
-/*      FROM table_references */
-/*      opt_where opt_groupby opt_having opt_orderby opt_limit */
-/*      opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5); } ; */
-/* ; */
+select_stmt: SELECT select_opts select_expr_list
+                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {$2, $3}; stack_push("SELECT {}{}", 2, arg_reps); }
+    | SELECT select_opts select_expr_list
+     FROM table_references
+     opt_where opt_groupby opt_having opt_orderby opt_limit
+     opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5); } ;
+;
 
 select_opts:                          { $$ = 0; int arg_reps[] = {}; stack_push("", 0, arg_reps);}
 | select_opts ALL                 

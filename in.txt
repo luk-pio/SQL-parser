@@ -3,3 +3,8 @@ select test_name;
 select test_name.test;
 select "test";
 select 1 + 1;
+select 1 / 3;
+select true;
+select UKNOWN;
+select NOT 1;
+select 1 = 1;
