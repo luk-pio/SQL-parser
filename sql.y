@@ -11,8 +11,8 @@
     #define BUFF_SIZE 8*kB
 
     int yylineno;
-    int yydebug=1;
-    int print_rpn=1;
+    int yydebug=0;
+    int print_rpn=0;
 
     int yylex(void);
     void rpn(char *s, ...);
