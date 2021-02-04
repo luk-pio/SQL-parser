@@ -8,3 +8,6 @@ select true;
 select UKNOWN;
 select NOT 1;
 select 1 = 1;
+select test_name, test_name, sdkj, alskdf.asdfkj;
+select 1 = (select 1);
+select 1 = SOME (select 1 IS NULL);

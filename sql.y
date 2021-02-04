@@ -7,10 +7,12 @@
     #include <math.h>
     #include <sys/queue.h>
 
-    #define BUFF_SIZE 1024
+    #define kB 1024
+    #define BUFF_SIZE 8*kB
 
-    int yydebug=0;
-    int print_rpn=0;
+    int yylineno;
+    int yydebug=1;
+    int print_rpn=1;
 
     int yylex(void);
     void rpn(char *s, ...);
@@ -126,10 +128,10 @@
 
 // TOP
 stmt_list: stmt ';' { $$ = 1; } 
-| stmt_list stmt ';' { $$ = $1 + 1; rpn("STMTLIST %i %i", $1, 1); int arg_reps[] = {1 + 1}; stack_push("{}\n{}", 2, arg_reps); }
+| stmt_list stmt ';' { $$ = 1; rpn("STMTLIST %i %i", $1, 1); int arg_reps[] = {1, 1}; stack_push("{}\n{}", 2, arg_reps); }
 ;
 
-stmt: select_stmt { $$ = $1; rpn("STMT"); int arg_reps[] = {$1}; stack_push("{};", 1, arg_reps); };
+stmt: select_stmt { $$ = $1; rpn("STMT"); int arg_reps[] = {1}; stack_push("{};", 1, arg_reps); };
 
 expr: NAME         { $$ = 1; rpn("NAME %s", $1); int arg_reps[] = {}; stack_push($1, 0, arg_reps); free($1);}
    | NAME '.' NAME { $$ = 1; rpn("FIELDNAME %s.%s", $1, $3); int arg_reps[] = {}; stack_pushf("%s.%s", 0, arg_reps, BUFF_SIZE, $1, $3); free($1); free($3); }
@@ -183,10 +185,10 @@ expr: expr '+' expr { rpn("ADD"); int arg_reps[] = {1,1}; stack_push("{} + {}", 
  }
    ;
 
-expr:  expr IS NULLX     { rpn("ISNULL"); int arg_reps[] = {}; stack_push("{} IS NULL", 1, arg_reps);}
-   | expr IS NOT NULLX { rpn("ISNULL"); rpn("NOT"); int arg_reps[] = {}; stack_push("{} IS NOT NULL", 1, arg_reps);}
-   | expr IS BOOL      { rpn("ISBOOL %d", $3); int arg_reps[] = {}; stack_push("{} IS BOOL", 1, arg_reps);}
-   | expr IS NOT BOOL  { rpn("ISBOOL %d", $4); rpn("NOT"); int arg_reps[] = {}; stack_push("{} IS NOT BOOL", 1, arg_reps);}
+expr:  expr IS NULLX     { rpn("ISNULL"); int arg_reps[] = {1}; stack_push("{} IS NULL", 1, arg_reps);}
+   | expr IS NOT NULLX { rpn("ISNULL"); rpn("NOT"); int arg_reps[] = {1}; stack_push("{} IS NOT NULL", 1, arg_reps);}
+   | expr IS BOOL      { rpn("ISBOOL %d", $3); int arg_reps[] = {1}; stack_push("{} IS BOOL", 1, arg_reps);}
+   | expr IS NOT BOOL  { rpn("ISBOOL %d", $4); rpn("NOT"); int arg_reps[] = {1}; stack_push("{} IS NOT BOOL", 1, arg_reps);}
 
    | USERVAR ASSIGN expr { rpn("ASSIGN @%s", $1);  int arg_reps[] = {}; stack_push("ASSIGN @{}", 1, arg_reps); free($1);}
    ;
@@ -198,10 +200,7 @@ expr: expr BETWEEN expr AND expr %prec BETWEEN { rpn("BETWEEN"); int arg_reps[] 
 // SELECT
 
 select_stmt: SELECT select_opts select_expr_list
-                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {$2, $3}; stack_push("SELECT {}{}", 2, arg_reps); }
-;
-select_stmt: SELECT select_opts select_expr_list
-                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {$2, $3}; stack_push("SELECT {}{}", 2, arg_reps); }
+                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {1, 1}; stack_push("SELECT {}{}", 2, arg_reps); }
     | SELECT select_opts select_expr_list
      FROM table_references
      opt_where opt_groupby opt_having opt_orderby opt_limit
@@ -210,17 +209,17 @@ select_stmt: SELECT select_opts select_expr_list
 
 select_opts:                          { $$ = 0; int arg_reps[] = {}; stack_push("", 0, arg_reps);}
 | select_opts ALL                 
-   { rpn("ALL"); int arg_reps[] = {}; stack_push("{}ALL ", 1, arg_reps); }
+   { rpn("ALL"); int arg_reps[] = {1}; stack_push("{}ALL ", 1, arg_reps); }
 | select_opts DISTINCT            
-   { rpn("DISTINCT"); int arg_reps[] = {}; stack_push("{}DISTINCT ", 1, arg_reps); }
+   { rpn("DISTINCT"); int arg_reps[] = {1}; stack_push("{}DISTINCT ", 1, arg_reps); }
 | select_opts DISTINCTROW         
-   { rpn("DISTINCTROW"); int arg_reps[] = {}; stack_push("{}DISTINCTROW ", 1, arg_reps); }
+   { rpn("DISTINCTROW"); int arg_reps[] = {1}; stack_push("{}DISTINCTROW ", 1, arg_reps); }
 | select_opts STRAIGHT_JOIN       
-   { rpn("STRAIGHT_JOIN"); int arg_reps[] = {}; stack_push("{}STRAIGHT_JOIN ", 1, arg_reps); }
+   { rpn("STRAIGHT_JOIN"); int arg_reps[] = {1}; stack_push("{}STRAIGHT_JOIN ", 1, arg_reps); }
     ;
 
 select_expr_list: select_expr { $$ = 1; int arg_reps[] = {1}; stack_push("{}", 1, arg_reps);}
-    | select_expr_list ',' select_expr {$$ = $1 + 1; int arg_reps[] = {$1, 1}; stack_push("{}, {}", 2, arg_reps);}
+    | select_expr_list ',' select_expr {$$ = $1 + 1; int arg_reps[] = {1, 1}; stack_push("{}, {}", 2, arg_reps);}
     | '*' { rpn("SELECTALL"); $$ = 1; int arg_reps[] = {}; stack_push("*", 0, arg_reps); }
     ;
 
@@ -486,7 +485,8 @@ char* construct(char* buff, int depth) {
 
       // Append all the arguments
       for (int j = 0; j < entry->arg_reps[i]; j++) {
-        debug_print(depth, "APPENDING ARG[%d][%d] CURR_ARG_NUM: %i\nARG VAL: '%s'\n", i, j, curr_arg_num, arg_buffs[curr_arg_num]);
+        debug_print(depth, "APPENDING ARG[%d][%d] CURR_ARG_NUM: %i\n", i, j, curr_arg_num);
+        debug_print(depth, "ARG VAL: '%s'\n", arg_buffs[curr_arg_num]);
         strcat(buff, arg_buffs[curr_arg_num++]);
       }
 
@@ -517,8 +517,6 @@ void pprint() {
 
 
 int yyerror(const char *s, ...) {
-  int yylineno;
-
   va_list ap;
   va_start(ap, s);
 
