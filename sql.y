@@ -11,8 +11,8 @@
     #define BUFF_SIZE 8*kB
 
     int yylineno;
-    int yydebug=0;
-    int print_rpn=0;
+    int yydebug=1;
+    int print_rpn=1;
 
     int yylex(void);
     void rpn(char *s, ...);
@@ -137,9 +137,9 @@ expr: NAME         { $$ = 1; rpn("NAME %s", $1); int arg_reps[] = {}; stack_push
    | NAME '.' NAME { $$ = 1; rpn("FIELDNAME %s.%s", $1, $3); int arg_reps[] = {}; stack_pushf("%s.%s", 0, arg_reps, BUFF_SIZE, $1, $3); free($1); free($3); }
    | USERVAR       { $$ = 1; rpn("USERVAR %s", $1); int arg_reps[] = {}; stack_push($1, 0, arg_reps); free($1); }
    | STRING        { $$ = 1; rpn("STRING %s", $1); int arg_reps[] = {}; stack_pushf("%s", 0, arg_reps, BUFF_SIZE, $1); free($1); }
-   | INTNUM        { $$ = 1; rpn("INTNUM %i", $1); int arg_reps[] = {}; stack_push(itostr($1), 0, arg_reps); }
-   | APPROXNUM     { $$ = 1; rpn("FLOAT %g", $1); int arg_reps[] = {}; stack_push(ftostr($1), 0, arg_reps); }
-   | BOOL          { $$ = 1; rpn("BOOL %d", $1); int arg_reps[] = {}; stack_push(btostr($1), 0, arg_reps); }
+   | INTNUM        { $$ = 1; rpn("INTNUM %i", $1); int arg_reps[] = {}; char * str = itostr($1); stack_push(str, 0, arg_reps); free(str); }
+   | APPROXNUM     { $$ = 1; rpn("FLOAT %g", $1); int arg_reps[] = {}; char * str = ftostr($1); stack_push(str, 0, arg_reps); free(str); }
+   | BOOL          { $$ = 1; rpn("BOOL %d", $1); int arg_reps[] = {}; char * str = btostr($1); stack_push(str, 0, arg_reps);}
    ;
 
 expr: expr '+' expr { rpn("ADD"); int arg_reps[] = {1,1}; stack_push("{} + {}", 2, arg_reps);}
@@ -202,9 +202,9 @@ expr: expr BETWEEN expr AND expr %prec BETWEEN { rpn("BETWEEN"); int arg_reps[] 
 select_stmt: SELECT select_opts select_expr_list
                         { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {1, 1}; stack_push("SELECT {}{}", 2, arg_reps); }
     | SELECT select_opts select_expr_list
-     FROM table_references
-     opt_where opt_groupby opt_having opt_orderby opt_limit
-     opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5); } ;
+     FROM table_references {rpn("SELECT %d %d %d", $2, $3, $5); int arg_reps[] = {1,1,1}; stack_push("SELECT {}{} FROM {}", 3, arg_reps);}
+     /* opt_where opt_groupby opt_having opt_orderby opt_limit */
+     /* opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5); int arg_reps[] = {1,1,1}; stack_push("SELECT{}{}{}{}{}{}{}{}{}")} ; */
 ;
 
 select_opts:                          { $$ = 0; int arg_reps[] = {}; stack_push("", 0, arg_reps);}
@@ -225,24 +225,25 @@ select_expr_list: select_expr { $$ = 1; int arg_reps[] = {1}; stack_push("{}", 1
 
 select_expr: expr opt_as_alias {int arg_reps[] = {1, 1}; stack_push("{}{}", 2, arg_reps); } ;
 
-opt_as_alias: AS NAME { rpn ("ALIAS %s", $2); int arg_reps[] = {1}; stack_push("AS {}", 1, arg_reps); free($2); }
-  | NAME              { rpn ("ALIAS %s", $1); int arg_reps[] = {}; stack_push("{}", 1, arg_reps); free($1); }
+opt_as_alias: AS NAME { rpn ("ALIAS %s", $2); int arg_reps[] = {}; stack_pushf(" AS %s", 0, arg_reps, BUFF_SIZE, $2); free($2); }
+  | NAME              { rpn ("ALIAS %s", $1); int arg_reps[] = {1}; stack_push($1, 0, arg_reps); free($1); }
   | /* nil */ { int arg_reps[] = {}; stack_push("", 0, arg_reps); }
   ;
 
 // FROM
-table_references:    table_reference { $$ = 1; }
-    | table_references ',' table_reference { $$ = $1 + 1; }
+table_references:    table_reference { $$ = 1; int arg_reps[] = {1}; stack_push("{}", 1, arg_reps); }
+    | table_references ',' table_reference { $$ = 1; int arg_reps[] = {1, 1}; stack_push("{}, {}", 2, arg_reps); }
     ;
 
 table_reference:  table_factor
-  | join_table
 ;
 
 table_factor:
-    NAME opt_as_alias { rpn("TABLE %s", $1); free($1); }
+    NAME opt_as_alias { rpn("TABLE %s", $1); int arg_reps[] = {1}; stack_pushf("%s{}", 1, arg_reps, BUFF_SIZE, $1); free($1); }
   | NAME '.' NAME opt_as_alias { rpn("TABLE %s.%s", $1, $3);
-                               free($1); free($3); }
+                                int arg_reps[] = {1};
+                                stack_pushf("%s.%s{}", 1, arg_reps, BUFF_SIZE, $1, $3);
+                                free($1); free($3); }
   | table_subquery opt_as NAME { rpn("SUBQUERYAS %s", $3); free($3); }
   | '(' table_references ')' { rpn("TABLEREFERENCES %d", $2); }
   ;
