@@ -16,8 +16,8 @@
 
     int yylex(void);
     void rpn(char *s, ...);
-    void stack_push(char *s, int numargs, int arg_reps[]);
-    void stack_pushf(char *s, int numargs, int arg_reps[], int maxsize, ...);
+    void stack_push(char *s, int numargs);
+    void stack_pushf(char *s, int numargs, int maxsize, ...);
     char *ftostr(float i);
     char *itostr(int i);
     char *btostr(int b);
@@ -26,7 +26,6 @@
     struct stack_entry {
       char *fstring;
       int numargs;
-      int arg_reps[BUFF_SIZE];
       SLIST_ENTRY(stack_entry) entries;
     };
 
@@ -128,121 +127,121 @@
 
 // TOP
 stmt_list: stmt ';' { $$ = 1; } 
-| stmt_list stmt ';' { $$ = 1; rpn("STMTLIST %i %i", $1, 1); int arg_reps[] = {1, 1}; stack_push("{}\n{}", 2, arg_reps); }
+| stmt_list stmt ';' { $$ = 1; rpn("STMTLIST %i %i", $1, 1); stack_push("{}\n{}", 2); }
 ;
 
-stmt: select_stmt { $$ = $1; rpn("STMT"); int arg_reps[] = {1}; stack_push("{};", 1, arg_reps); };
+stmt: select_stmt { $$ = $1; rpn("STMT");  stack_push("{};", 1); };
 
-expr: NAME         { $$ = 1; rpn("NAME %s", $1); int arg_reps[] = {}; stack_push($1, 0, arg_reps); free($1);}
-   | NAME '.' NAME { $$ = 1; rpn("FIELDNAME %s.%s", $1, $3); int arg_reps[] = {}; stack_pushf("%s.%s", 0, arg_reps, BUFF_SIZE, $1, $3); free($1); free($3); }
-   | USERVAR       { $$ = 1; rpn("USERVAR %s", $1); int arg_reps[] = {}; stack_push($1, 0, arg_reps); free($1); }
-   | STRING        { $$ = 1; rpn("STRING %s", $1); int arg_reps[] = {}; stack_pushf("%s", 0, arg_reps, BUFF_SIZE, $1); free($1); }
-   | INTNUM        { $$ = 1; rpn("INTNUM %i", $1); int arg_reps[] = {}; char * str = itostr($1); stack_push(str, 0, arg_reps); free(str); }
-   | APPROXNUM     { $$ = 1; rpn("FLOAT %g", $1); int arg_reps[] = {}; char * str = ftostr($1); stack_push(str, 0, arg_reps); free(str); }
-   | BOOL          { $$ = 1; rpn("BOOL %d", $1); int arg_reps[] = {}; char * str = btostr($1); stack_push(str, 0, arg_reps);}
+expr: NAME         { $$ = 1; rpn("NAME %s", $1);  stack_push($1, 0); free($1);}
+   | NAME '.' NAME { $$ = 1; rpn("FIELDNAME %s.%s", $1, $3);  stack_pushf("%s.%s", 0, BUFF_SIZE, $1, $3); free($1); free($3); }
+   | USERVAR       { $$ = 1; rpn("USERVAR %s", $1);  stack_push($1, 0); free($1); }
+   | STRING        { $$ = 1; rpn("STRING %s", $1);  stack_pushf("%s", 0, BUFF_SIZE, $1); free($1); }
+   | INTNUM        { $$ = 1; rpn("INTNUM %i", $1);  char * str = itostr($1); stack_push(str, 0); free(str); }
+   | APPROXNUM     { $$ = 1; rpn("FLOAT %g", $1);  char * str = ftostr($1); stack_push(str, 0); free(str); }
+   | BOOL          { $$ = 1; rpn("BOOL %d", $1);  char * str = btostr($1); stack_push(str, 0);}
    ;
 
-expr: expr '+' expr { rpn("ADD"); int arg_reps[] = {1,1}; stack_push("{} + {}", 2, arg_reps);}
-   | expr '-' expr { rpn("SUB"); int arg_reps[] = {1,1}; stack_push("{} - {}", 2, arg_reps);}
-   | expr '*' expr { rpn("MUL"); int arg_reps[] = {1,1}; stack_push("{} * {}", 2, arg_reps);}
-   | expr '/' expr { rpn("DIV"); int arg_reps[] = {1,1}; stack_push("{} / {}", 2, arg_reps);}
-   | expr '%' expr { rpn("MOD"); int arg_reps[] = {1,1}; stack_push("{} % {}", 2, arg_reps);}
-   | expr MOD expr { rpn("MOD"); int arg_reps[] = {1,1}; stack_push("{} MOD {}", 2, arg_reps);}
-   | expr ANDOP expr { rpn("AND"); int arg_reps[] = {1,1}; stack_push("{} AND {}", 2, arg_reps);}
-   | expr OR expr { rpn("OR"); int arg_reps[] = {1,1}; stack_push("{} OR {}", 2, arg_reps);}
-   | expr XOR expr { rpn("XOR"); int arg_reps[] = {1,1}; stack_push("{} XOR {}", 2, arg_reps);}
-   | expr '|' expr { rpn("BITOR"); int arg_reps[] = {1,1}; stack_push("{} | {}", 2, arg_reps);}
-   | expr '&' expr { rpn("BITAND"); int arg_reps[] = {1,1}; stack_push("{} & {}", 2, arg_reps);}
-   | expr '^' expr { rpn("BITXOR"); int arg_reps[] = {1,1}; stack_push("{} ^ {}", 2, arg_reps);}
-   | NOT expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {1}; stack_push("NOT {}", 1, arg_reps);}
-   | '!' expr { $$ = $2 + 1; rpn("NOT"); int arg_reps[] = {1}; stack_push("! {}", 1, arg_reps);}
+expr: expr '+' expr { rpn("ADD");  stack_push("{} + {}", 2);}
+   | expr '-' expr { rpn("SUB");  stack_push("{} - {}", 2);}
+   | expr '*' expr { rpn("MUL");  stack_push("{} * {}", 2);}
+   | expr '/' expr { rpn("DIV");  stack_push("{} / {}", 2);}
+   | expr '%' expr { rpn("MOD");  stack_push("{} % {}", 2);}
+   | expr MOD expr { rpn("MOD");  stack_push("{} MOD {}", 2);}
+   | expr ANDOP expr { rpn("AND");  stack_push("{} AND {}", 2);}
+   | expr OR expr { rpn("OR");  stack_push("{} OR {}", 2);}
+   | expr XOR expr { rpn("XOR");  stack_push("{} XOR {}", 2);}
+   | expr '|' expr { rpn("BITOR");  stack_push("{} | {}", 2);}
+   | expr '&' expr { rpn("BITAND");  stack_push("{} & {}", 2);}
+   | expr '^' expr { rpn("BITXOR");  stack_push("{} ^ {}", 2);}
+   | NOT expr { $$ = $2 + 1; rpn("NOT");  stack_push("NOT {}", 1);}
+   | '!' expr { $$ = $2 + 1; rpn("NOT");  stack_push("! {}", 1);}
    | expr COMPARISON expr {
     rpn("CMP %s", $2);
-    int arg_reps[] = {1,1}; stack_pushf("{} %s {}", 2, arg_reps, 16, $2);
+     stack_pushf("{} %s {}", 2, 16, $2);
     free($2);
  }
 
       /* recursive selects and comparisons */
    | expr COMPARISON '(' select_stmt ')' {
     rpn("CMPSELECT %d", $2);
-    int arg_reps[] = {}; stack_pushf("{} %s ({})", 2, arg_reps, 16, $2);
+     stack_pushf("{} %s ({})", 2, 16, $2);
     free($2);
  }
    | expr COMPARISON ANY '(' select_stmt ')' {
     rpn("CMPANYSELECT %d", $2);
-    int arg_reps[] = {}; stack_pushf("{} %s ANY ({})", 2, arg_reps, 16, $2);
+     stack_pushf("{} %s ANY ({})", 2, 16, $2);
     free($2);
  }
    | expr COMPARISON SOME '(' select_stmt ')' {
     rpn("CMPANYSELECT %d", $2);
-    int arg_reps[] = {}; stack_pushf("{} %s SOME ({})", 2, arg_reps, 16, $2);
+     stack_pushf("{} %s SOME ({})", 2, 16, $2);
     free($2);
  }
    | expr COMPARISON ALL '(' select_stmt ')' {
     rpn("CMPALLSELECT %d", $2);
-    int arg_reps[] = {}; stack_pushf("{} %s ALL ({})", 2, arg_reps, 16, $2);
+     stack_pushf("{} %s ALL ({})", 2, 16, $2);
     free($2);
  }
    ;
 
-expr:  expr IS NULLX     { rpn("ISNULL"); int arg_reps[] = {1}; stack_push("{} IS NULL", 1, arg_reps);}
-   | expr IS NOT NULLX { rpn("ISNULL"); rpn("NOT"); int arg_reps[] = {1}; stack_push("{} IS NOT NULL", 1, arg_reps);}
-   | expr IS BOOL      { rpn("ISBOOL %d", $3); int arg_reps[] = {1}; stack_push("{} IS BOOL", 1, arg_reps);}
-   | expr IS NOT BOOL  { rpn("ISBOOL %d", $4); rpn("NOT"); int arg_reps[] = {1}; stack_push("{} IS NOT BOOL", 1, arg_reps);}
+expr:  expr IS NULLX     { rpn("ISNULL");  stack_push("{} IS NULL", 1);}
+   | expr IS NOT NULLX { rpn("ISNULL"); rpn("NOT");  stack_push("{} IS NOT NULL", 1);}
+   | expr IS BOOL      { rpn("ISBOOL %d", $3);  stack_push("{} IS BOOL", 1);}
+   | expr IS NOT BOOL  { rpn("ISBOOL %d", $4); rpn("NOT");  stack_push("{} IS NOT BOOL", 1);}
 
-   | USERVAR ASSIGN expr { rpn("ASSIGN @%s", $1);  int arg_reps[] = {}; stack_push("ASSIGN @{}", 1, arg_reps); free($1);}
+   | USERVAR ASSIGN expr { rpn("ASSIGN @%s", $1);   stack_push("ASSIGN @{}", 1); free($1);}
    ;
 
     /* "AND" has special precedence in BETWEEN clauses */
-expr: expr BETWEEN expr AND expr %prec BETWEEN { rpn("BETWEEN"); int arg_reps[] = {1,1,1}; stack_push("{} BETWEEN {} AND {}", 3, arg_reps);}
+expr: expr BETWEEN expr AND expr %prec BETWEEN { rpn("BETWEEN");  stack_push("{} BETWEEN {} AND {}", 3);}
    ;
 
 // SELECT
 
 select_stmt: SELECT select_opts select_expr_list
-                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3); int arg_reps[] = {1, 1}; stack_push("SELECT {}{}", 2, arg_reps); }
+                        { $$ = 1; rpn("SELECTNODATA %d %d", $2, $3);  stack_push("SELECT {}{}", 2); }
     | SELECT select_opts select_expr_list
-     FROM table_references {rpn("SELECT %d %d %d", $2, $3, $5); int arg_reps[] = {1,1,1}; stack_push("SELECT {}{} FROM {}", 3, arg_reps);}
+     FROM table_references {rpn("SELECT %d %d %d", $2, $3, $5);  stack_push("SELECT {}{} FROM {}", 3);}
      /* opt_where opt_groupby opt_having opt_orderby opt_limit */
-     /* opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5); int arg_reps[] = {1,1,1}; stack_push("SELECT{}{}{}{}{}{}{}{}{}")} ; */
+     /* opt_into_list { rpn("SELECT %d %d %d", $2, $3, $5);  stack_push("SELECT{}{}{}{}{}{}{}{}{}")} ; */
 ;
 
-select_opts:                          { $$ = 0; int arg_reps[] = {}; stack_push("", 0, arg_reps);}
+select_opts:                          { $$ = 0;  stack_push("", 0);}
 | select_opts ALL                 
-   { rpn("ALL"); int arg_reps[] = {1}; stack_push("{}ALL ", 1, arg_reps); }
+   { rpn("ALL");  stack_push("{}ALL ", 1); }
 | select_opts DISTINCT            
-   { rpn("DISTINCT"); int arg_reps[] = {1}; stack_push("{}DISTINCT ", 1, arg_reps); }
+   { rpn("DISTINCT");  stack_push("{}DISTINCT ", 1); }
 | select_opts DISTINCTROW         
-   { rpn("DISTINCTROW"); int arg_reps[] = {1}; stack_push("{}DISTINCTROW ", 1, arg_reps); }
+   { rpn("DISTINCTROW");  stack_push("{}DISTINCTROW ", 1); }
 | select_opts STRAIGHT_JOIN       
-   { rpn("STRAIGHT_JOIN"); int arg_reps[] = {1}; stack_push("{}STRAIGHT_JOIN ", 1, arg_reps); }
+   { rpn("STRAIGHT_JOIN");  stack_push("{}STRAIGHT_JOIN ", 1); }
     ;
 
-select_expr_list: select_expr { $$ = 1; int arg_reps[] = {1}; stack_push("{}", 1, arg_reps);}
-    | select_expr_list ',' select_expr {$$ = $1 + 1; int arg_reps[] = {1, 1}; stack_push("{}, {}", 2, arg_reps);}
-    | '*' { rpn("SELECTALL"); $$ = 1; int arg_reps[] = {}; stack_push("*", 0, arg_reps); }
+select_expr_list: select_expr { $$ = 1;  stack_push("{}", 1);}
+    | select_expr_list ',' select_expr {$$ = $1 + 1;  stack_push("{}, {}", 2);}
+    | '*' { rpn("SELECTALL"); $$ = 1;  stack_push("*", 0); }
     ;
 
-select_expr: expr opt_as_alias {int arg_reps[] = {1, 1}; stack_push("{}{}", 2, arg_reps); } ;
+select_expr: expr opt_as_alias { stack_push("{}{}", 2); } ;
 
-opt_as_alias: AS NAME { rpn ("ALIAS %s", $2); int arg_reps[] = {}; stack_pushf(" AS %s", 0, arg_reps, BUFF_SIZE, $2); free($2); }
-  | NAME              { rpn ("ALIAS %s", $1); int arg_reps[] = {1}; stack_push($1, 0, arg_reps); free($1); }
-  | /* nil */ { int arg_reps[] = {}; stack_push("", 0, arg_reps); }
+opt_as_alias: AS NAME { rpn ("ALIAS %s", $2);  stack_pushf(" AS %s", 0, BUFF_SIZE, $2); free($2); }
+  | NAME              { rpn ("ALIAS %s", $1);  stack_push($1, 0); free($1); }
+  | /* nil */ {  stack_push("", 0); }
   ;
 
 // FROM
-table_references:    table_reference { $$ = 1; int arg_reps[] = {1}; stack_push("{}", 1, arg_reps); }
-    | table_references ',' table_reference { $$ = 1; int arg_reps[] = {1, 1}; stack_push("{}, {}", 2, arg_reps); }
+table_references:    table_reference { $$ = 1;  stack_push("{}", 1); }
+    | table_references ',' table_reference { $$ = 1;  stack_push("{}, {}", 2); }
     ;
 
 table_reference:  table_factor
 ;
 
 table_factor:
-    NAME opt_as_alias { rpn("TABLE %s", $1); int arg_reps[] = {1}; stack_pushf("%s{}", 1, arg_reps, BUFF_SIZE, $1); free($1); }
+    NAME opt_as_alias { rpn("TABLE %s", $1);  stack_pushf("%s{}", 1, BUFF_SIZE, $1); free($1); }
   | NAME '.' NAME opt_as_alias { rpn("TABLE %s.%s", $1, $3);
-                                int arg_reps[] = {1};
-                                stack_pushf("%s.%s{}", 1, arg_reps, BUFF_SIZE, $1, $3);
+                                
+                                stack_pushf("%s.%s{}", 1, BUFF_SIZE, $1, $3);
                                 free($1); free($3); }
   | table_subquery opt_as NAME { rpn("SUBQUERYAS %s", $3); free($3); }
   | '(' table_references ')' { rpn("TABLEREFERENCES %d", $2); }
@@ -382,10 +381,9 @@ void rpn(char* s, ...) {
 }
 
 
-void stack_push(char* s, int numargs, int arg_reps[]) {
+void stack_push(char* s, int numargs) {
   char* str = malloc(sizeof(char) * BUFF_SIZE);
   struct stack_entry* entry = malloc(sizeof* entry);
-  memcpy(entry->arg_reps, arg_reps, numargs * sizeof(int));
   strcpy(str, s);
   entry->fstring = str;
   entry->numargs = numargs;
@@ -394,13 +392,13 @@ void stack_push(char* s, int numargs, int arg_reps[]) {
 }
 
 
-void stack_pushf(char* s, int numargs, int arg_reps[], int maxsize, ...) {
+void stack_pushf(char* s, int numargs, int maxsize, ...) {
   va_list ap;
   va_start(ap, maxsize);
 
   char* str = malloc(sizeof(char) * maxsize);
   vsnprintf(str, maxsize, s, ap);
-  stack_push(str, numargs, arg_reps);
+  stack_push(str, numargs);
 }
 
 void debug_print(int depth, char * tmpl, ...) {
@@ -446,23 +444,14 @@ char* construct(char* buff, int depth) {
 
   debug_print(depth, "CONSTRUCTING ENTRY: '%s'\n", entry->fstring);
 
-  // Calculate the total no. of arguments
-  debug_print(depth, "NUMARGS: %i\n", entry->numargs);
-  int argsum = 0;
-  for (int i = 0; i < entry->numargs; i++) {
-    debug_print(depth, "NUMARG: %i\n", entry->arg_reps[i]);
-    argsum += entry->arg_reps[i];
-  }
-  debug_print(depth, "ARGSUM: %i\n", argsum);
-
   // Allocate a buffer for each argument
   char **arg_buffs;
-  arg_buffs = malloc(argsum * sizeof(char*));
-  for (int i = 0; i < argsum; i++)
+  arg_buffs = malloc(entry->numargs * sizeof(char*));
+  for (int i = 0; i < entry->numargs; i++)
     arg_buffs[i] = malloc(sizeof(char) * BUFF_SIZE);
 
   // From the end (because RPN), construct and store into buffers.
-  for (int i = argsum - 1; i > -1; i--) {
+  for (int i = entry->numargs - 1; i > -1; i--) {
     strcpy(arg_buffs[i], "");
     debug_print(depth, "ENTERING ARG[%i]\n", i);
     construct(arg_buffs[i], depth + 1);
@@ -474,22 +463,18 @@ char* construct(char* buff, int depth) {
   int found_ind, str_start = 0;
 
   // This could've gone in with the loop above to minimize recursion - but no time to optimize
-  int curr_arg_num = 0;
   for (int i = 0; i < entry->numargs; i++) {
     // we look for each occurence of "{}" in the template string and substitute it for the constructed argument strings for the argument cluster
     found_char = strchr(&tmpl_str[str_start], '{');
     found_ind = (int)(found_char - tmpl_str);
     if (tmpl_str[found_ind + 1] == '}') {
-
       // First, insert the substring before the argument
       strncat(buff, &tmpl_str[str_start], found_ind - str_start);
-
-      // Append all the arguments
-      for (int j = 0; j < entry->arg_reps[i]; j++) {
-        debug_print(depth, "APPENDING ARG[%d][%d] CURR_ARG_NUM: %i\n", i, j, curr_arg_num);
-        debug_print(depth, "ARG VAL: '%s'\n", arg_buffs[curr_arg_num]);
-        strcat(buff, arg_buffs[curr_arg_num++]);
-      }
+      
+      // Append the argument
+      debug_print(depth, "APPENDING ARG[%d]\n", i);
+      debug_print(depth, "ARG VAL: '%s'\n", arg_buffs[i]);
+      strcat(buff, arg_buffs[i]);
 
       str_start = found_ind + 2;
     } else {
@@ -501,10 +486,10 @@ char* construct(char* buff, int depth) {
 
   debug_print(depth, "ENTRY '%s' CONSTRUCTED, RES = '%s'\n", entry->fstring, buff);
 
-  free(entry);
-  for (int i = 0; i < argsum; i++)
+  for (int i = 0; i < entry->numargs; i++)
     free(arg_buffs[i]);
   free(arg_buffs);
+  free(entry);
 }
 
 
